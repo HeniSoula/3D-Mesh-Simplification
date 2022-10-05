@@ -32,11 +32,21 @@ def compute_curvatures(model):
         curvatures.append(curvature)
     return curvatures
 
-def find_neighboors(model, vertex_index, r):
-    neighboors = []
+def find_neighbours(model, vertex_index):
+    neighbours = []
     for face in model.faces:
+        indices = [face.a, face.b, face.c]
+        if vertex_index-1  in indices:
+            for index in indices:
+                neighbours.append(index+1)
+    neighbours = list(dict.fromkeys(neighbours))
+    neighbours.remove(vertex_index)
+    return neighbours
 
-    return neighboors
+neigh = find_neighbours(model, 1)
+print(neigh)
 
-def edge_collapse(model, vertex_index):
-    
+
+
+#def edge_collapse(model, vertex_index):
+
