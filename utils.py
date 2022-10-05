@@ -48,5 +48,32 @@ print(neigh)
 
 
 
-#def edge_collapse(model, vertex_index):
+
+def edge_collapse(model, vertex_index):
+    neighbours = find_neighbours(model, vertex_index, 1)
+    V_s = model.vertices[vertex_index]
+    V_t = model.vertices[neighbours[0]]
+
+    # Removing one of the vertex
+    # Au hasard pour l'instant
+    del model.vertices[neighbours[0]]
+
+    # Editing the other one
+    model.vertices[vertex_index][0] = (V_s[0] + V_t[0])/2
+    model.vertices[vertex_index][1] = (V_s[1] + V_t[1])/2
+    model.vertices[vertex_index][2] = (V_s[2] + V_t[2])/2
+
+    # Décaler de 1 tous les indices des faces à partir du vertex supprimé
+    for i in range(length(model.faces)):
+        a = model.faces[i].a
+        b = model.faces[i].b
+        c = model.faces[i].c
+
+        if a >= neighbours[0] :
+            a = a - 1
+        if b >= neighbours[0] :
+            b = b - 1
+        if c >= neighbours[0] :
+            c = c - 1
+
 
