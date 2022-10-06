@@ -23,6 +23,7 @@ def compute_areas(model):
         areas.append(area)
     return areas
 
+
 def compute_curvatures(model):
     # Compute curvature at each vertex
     curvatures = []
@@ -32,25 +33,31 @@ def compute_curvatures(model):
         curvatures.append(curvature)
     return curvatures
 
+
 def find_neighbours(model, vertex_index):
-    neighbours = []
+    neighbours = set()
     for face in model.faces:
         indices = [face.a, face.b, face.c]
-        if vertex_index-1  in indices:
+        if vertex_index-1 in indices:
             for index in indices:
-                neighbours.append(index+1)
-    neighbours = list(dict.fromkeys(neighbours))
+                neighbours.add(index+1)
     neighbours.remove(vertex_index)
     return neighbours
 
-neigh = find_neighbours(model, 1)
-print(neigh)
 
-
+def find_neighbours_r(model, vertex_index, r):
+    neighbours = {vertex_index}
+    for _ in range(r):
+        neighbours2 = neighbours.copy()
+        for elt in neighbours2:
+            temp = find_neighbours(model, elt)
+            neighbours.update(temp)
+    neighbours.remove(vertex_index)
+    return list(neighbours)
 
 
 def edge_collapse(model, vertex_index):
-    neighbours = find_neighbours(model, vertex_index, 1)
+    neighbours = find_neighbours_r(model, vertex_index, 1)
     V_s = model.vertices[vertex_index]
     V_t = model.vertices[neighbours[0]]
 
@@ -64,7 +71,7 @@ def edge_collapse(model, vertex_index):
     model.vertices[vertex_index][2] = (V_s[2] + V_t[2])/2
 
     # Décaler de 1 tous les indices des faces à partir du vertex supprimé
-    for i in range(length(model.faces)):
+    for i in range(len(model.faces)):
         a = model.faces[i].a
         b = model.faces[i].b
         c = model.faces[i].c
