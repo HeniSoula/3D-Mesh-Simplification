@@ -2,6 +2,7 @@
 
 import sys
 import numpy as np
+from math import sqrt
 import random
 
 """
@@ -17,6 +18,20 @@ class Face:
         self.b = b
         self.c = c
         self.visible = visible
+
+    def normal(self, vertices):
+        a, b, c = vertices[self.a], vertices[self.b], vertices[self.c]
+        AB = b - a
+        AC = c - a
+        normal = np.cross(AB, AC)
+        return normal
+    
+    def area(self, vertices):
+        a, b, c = vertices[self.a], vertices[self.b], vertices[self.c]
+        AB = b - a
+        AC = c - a
+        area = 0.5*sqrt((AB[1]*AC[2] - AB[2]*AC[1])**2 + (AB[2]*AC[0] - AB[0]*AC[2])**2 + (AB[0]*AC[1] - AC[1]*AC[0])**2)
+        return area
 
     def from_array(array):
         """
