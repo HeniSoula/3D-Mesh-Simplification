@@ -12,14 +12,21 @@ def compute_curvatures(model):
         curvatures.append(curvature)
     return curvatures
 
+def find_faces(model, vertex_index):
+    faces = []
+    for face in model.faces:
+        indices = [face.a, face.b, face.c]
+        if vertex_index-1 in indices:
+            faces.add(face)
+    return faces
 
 def find_neighbours(model, vertex_index):
     neighbours = set()
     for face in model.faces:
         indices = [face.a, face.b, face.c]
-        if vertex_index-1 in indices:
+        if vertex_index in indices:
             for index in indices:
-                neighbours.add(index+1)
+                neighbours.add(index)
     neighbours.remove(vertex_index)
     return neighbours
 
@@ -27,47 +34,50 @@ def find_neighbours(model, vertex_index):
 def find_neighbours_r(model, vertex_index, r):
     neighbours = {vertex_index}
     for _ in range(r):
-        neighbours2 = neighbours.copy()
-        for elt in neighbours2:
-            temp = find_neighbours(model, elt)
-            neighbours.update(temp)
+        temp = neighbours.copy()
+        for elt in temp:
+            neighbours.update(find_neighbours(model, elt))
     neighbours.remove(vertex_index)
     return list(neighbours)
 
 
 def edge_collapse(model, vertex_index):
     neighbours = find_neighbours_r(model, vertex_index, 1)
-    V_s = model.vertices[vertex_index]
-    V_t = model.vertices[neighbours[0]]
+    v_s = model.vertices[vertex_index]
+    remove_index = neighbours[0]
+    v_t = model.vertices[remove_index]
 
-    # Removing one of the vertex
+    # Removing one of the vertices
     # Au hasard pour l'instant
-    del model.vertices[neighbours[0]]
+    del model.vertices[remove_index]
 
     # Editing the other one
-    model.vertices[vertex_index][0] = (V_s[0] + V_t[0])/2
-    model.vertices[vertex_index][1] = (V_s[1] + V_t[1])/2
-    model.vertices[vertex_index][2] = (V_s[2] + V_t[2])/2
+    model.vertices[vertex_index] = (v_s + v_t)/2
 
     # Décaler de 1 tous les indices des faces à partir du vertex supprimé
-    for i in range(len(model.faces)):
-        a = model.faces[i].a
-        b = model.faces[i].b
-        c = model.faces[i].c
-
-        if a >= neighbours[0] :
-            a = a - 1
-        if b >= neighbours[0] :
-            b = b - 1
-        if c >= neighbours[0] :
-            c = c - 1
-
+    removed_faces = []
+    temp = model.faces.copy()
+    for face in temp:
+        indices = [face.a, face.b, face.c]
+        if (vertex_index in indices) and (remove_index in indices):
+            removed_faces.append(face)
+            model.faces.remove(face)
+        else:
+            if face.a >= remove_index :
+                face.a -= 1
+            if face.b >= remove_index :
+                face.b -= 1
+            if face.c >= remove_index :
+                face.c -= 1
+    
+    return model, removed_faces
 
 # Load model
 path = "example\\bunny.obj"
 model = parse_file(path)
-
-# Fix radius r for neighborhood
-r = 3
-
-print(compute_areas(model))
+print(len(model.faces))
+print(model.faces[4000])
+model, removed = edge_collapse(model, 0)
+print(removed)
+print(len(model.faces))
+print(model.faces[4000-2])
