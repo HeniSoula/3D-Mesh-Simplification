@@ -16,8 +16,8 @@ def find_faces(model, vertex_index):
     faces = []
     for face in model.faces:
         indices = [face.a, face.b, face.c]
-        if vertex_index-1 in indices:
-            faces.add(face)
+        if vertex_index in indices:
+            faces.append(face)
     return faces
 
 def find_neighbours(model, vertex_index):
@@ -44,7 +44,7 @@ def find_neighbours_r(model, vertex_index, r):
 def edge_collapse(model, vertex_index):
     neighbours = find_neighbours_r(model, vertex_index, 1)
     v_s = model.vertices[vertex_index]
-    remove_index = neighbours[0]
+    remove_index = neighbours[4]
     v_t = model.vertices[remove_index]
 
     # Removing one of the vertices
@@ -63,21 +63,28 @@ def edge_collapse(model, vertex_index):
             removed_faces.append(face)
             model.faces.remove(face)
         else:
-            if face.a >= remove_index :
+            if face.a == remove_index :
+                face.a = vertex_index
+            elif face.a >= remove_index:
                 face.a -= 1
-            if face.b >= remove_index :
+            if face.b == remove_index :
+                face.b = vertex_index
+            elif face.b >= remove_index:
                 face.b -= 1
-            if face.c >= remove_index :
+            if face.c == remove_index :
+                face.c = vertex_index
+            elif face.c >= remove_index:
                 face.c -= 1
     
-    return model, removed_faces
+    return model, remove_index, removed_faces
 
-# Load model
+# Testing
 path = "example\\bunny.obj"
 model = parse_file(path)
-print(len(model.faces))
-print(model.faces[4000])
-model, removed = edge_collapse(model, 0)
-print(removed)
-print(len(model.faces))
-print(model.faces[4000-2])
+print(model.faces[:8])
+print("before : ",find_faces(model,1070))
+model, remove_index, removed_faces = edge_collapse(model, 0)
+print("remove_index : ",remove_index)
+print(removed_faces)
+print(model.faces[:8])
+print("after : ",find_faces(model,0))
