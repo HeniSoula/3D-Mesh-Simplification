@@ -1,15 +1,32 @@
 from obja import parse_file
 import copy
+import numpy as np
 
-def compute_areas(model):
-    return [face.area(model.vertices) for face in model.faces]
+def compute_areas(model, faces):
+    return [face.area(model.vertices) for face in faces]
+
+def compute_face_normals(model, faces):
+    return [face.normal(model.vertices) for face in faces]
+
+def compute_vertex_normal(model, vertex_index):
+    faces = find_faces(model, vertex_index)
+    normals = compute_face_normals(model, faces)
+    vertex_normal = np.mean(normals)
+    return vertex_normal
 
 def compute_curvatures(model):
     # Compute curvature at each vertex
     curvatures = []
-    for vertex in model.vertices:
-        #TODO
-        curvature = 1
+    for vertex_index, vertex in enumerate(model.vertices):
+        vertex_normal = compute_vertex_normal(model, vertex_index)
+
+        neighbours = find_neighbours_r(model, vertex_index, 1)
+        curvature = 0
+        for neighbour_index in neighbours:
+            neighbour = model.vertices[neighbour_index]
+            neighbour_normal = compute_vertex_normal(model, neighbour_index)
+            curvature += np.dot(neighbour_normal-vertex_normal, neighbour-vertex)/np.linalg.norm(neighbour-vertex)**2
+
         curvatures.append(curvature)
     return curvatures
 
@@ -98,3 +115,5 @@ print(150*"-")
 
 print("faces containing remove_index BEFORE edge collapse :\n ", find_faces(model, remove_index))
 print("faces containing vertex_index AFTER edge collapse :\n ", find_faces(new_model, vertex_index))
+
+curvatures = compute_curvatures(new_model)
