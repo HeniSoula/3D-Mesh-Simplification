@@ -97,6 +97,26 @@ def edge_collapse(model, vertex_index):
     
     return new_model, remove_index, removed_faces
 
+def compute_area_vertex_simplified(model, vertex_index):
+    faces = find_faces(model, vertex_index)
+    areas = compute_areas(model, faces)
+    vertex_area = np.sum(areas)/3
+    return vertex_area
+
+def probabilite(model, vertex_index, curvatures):
+    sigma = curvatures[vertex_index]
+    neighbours = find_neighbours(model, vertex_index)
+    area_important = 0
+    area_total = 0
+    for i in range(len(neighbours)) :
+        sigma_neighbour = curvatures[neighbours[i]]
+        area_neighbour = compute_area_vertex_simplified(model, neighbours[i])
+        area_total += area_neighbour
+        if sigma == sigma_neighbour :
+            area_important += area_neighbour
+    return (area_important/area_total)
+
+
 # Testing
 path = "example\\bunny.obj"
 model = parse_file(path)
