@@ -1,5 +1,4 @@
 from obja import Model, parse_file, Face
-import copy
 import numpy as np
 import time
 
@@ -13,22 +12,39 @@ def compute_vertex_normal(model, vertex_index):
     faces = find_faces(model, vertex_index)
     normals = compute_face_normals(model, faces)
     vertex_normal = np.mean(normals, axis=0)
+    vertex_normal /= np.linalg.norm(vertex_normal)
     return vertex_normal
+
+# def compute_curvatures(model):
+#     # Compute curvature at each vertex
+#     curvatures = []
+#     for vertex_index, vertex in enumerate(model.vertices):
+#         vertex_normal = compute_vertex_normal(model, vertex_index)
+
+#         neighbours = find_neighbours_r(model, vertex_index, 1)
+#         curvature = 0
+#         for neighbour_index in neighbours:
+#             neighbour = model.vertices[neighbour_index]
+#             neighbour_normal = compute_vertex_normal(model, neighbour_index)
+#             curvature += np.inner(neighbour_normal-vertex_normal, neighbour-vertex)/np.linalg.norm(neighbour-vertex)**2
+
+#         curvature /= len(neighbours)
+#         curvatures.append(curvature)
+#     return curvatures
 
 def compute_curvatures(model):
     # Compute curvature at each vertex
     curvatures = []
     for vertex_index, vertex in enumerate(model.vertices):
-        vertex_normal = compute_vertex_normal(model, vertex_index)
 
         neighbours = find_neighbours_r(model, vertex_index, 1)
-        curvature = 0
+        curvature = np.zeros((3,))
         for neighbour_index in neighbours:
             neighbour = model.vertices[neighbour_index]
-            neighbour_normal = compute_vertex_normal(model, neighbour_index)
-            curvature += np.dot(neighbour_normal-vertex_normal, neighbour-vertex)/np.linalg.norm(neighbour-vertex)**2
+            curvature += vertex-neighbour/np.linalg.norm(neighbour-vertex)
 
-        curvatures.append(curvature)
+        curv = np.linalg.norm(curvature)/len(neighbours)
+        curvatures.append(curv)
     return curvatures
 
 def find_faces(model, vertex_index):
@@ -49,7 +65,6 @@ def find_neighbours(model, vertex_index):
     neighbours.remove(vertex_index)
     return neighbours
 
-
 def find_neighbours_r(model, vertex_index, r):
     neighbours = {vertex_index}
     for _ in range(r):
@@ -58,6 +73,44 @@ def find_neighbours_r(model, vertex_index, r):
             neighbours.update(find_neighbours(model, elt))
     neighbours.remove(vertex_index)
     return list(neighbours)
+
+def sampling(curvatures, num):
+    min_curvature = np.min(curvatures)
+    max_curvature = np.max(curvatures)
+    sampled = np.linspace(min_curvature, max_curvature, num)
+    return sampled  
+
+def compute_vertex_area(model, vertex_index):
+    faces = find_faces(model, vertex_index)
+    areas = compute_areas(model, faces)
+    vertex_area = np.sum(areas)/3
+    return vertex_area
+
+def saliency_map(model, mesh_curvatures):
+    saliency = []
+    for vertex_index in range(len(model.vertices)):
+        neighbours = find_neighbours_r(model, vertex_index, 1)
+        curvatures = [mesh_curvatures[neighbour] for neighbour in neighbours]
+        sigmas = sampling(curvatures, int(len(curvatures)/4))
+        entropy = compute_entropy(model, sigmas, curvatures, neighbours)
+        saliency.append(entropy)
+    return saliency
+
+def compute_entropy(model, sigmas, curvatures, neighbours):
+    total_areas = [compute_vertex_area(model, idx) for idx in neighbours]
+    total_area = np.sum(total_areas)
+    entropy = 0
+    for sigma in sigmas:
+        p = 0
+        areas = 0
+        for i, curvature in enumerate(curvatures):
+            if sigmas[sigmas <= curvature].max() == sigma:
+                neighbour_area = total_areas[i]
+                areas += neighbour_area
+        p = areas/total_area
+
+        entropy -= p*np.log2(p)
+    return entropy
 
 def edge_collapse(model, vertex_index, saliency):
     output = Model()
@@ -85,47 +138,6 @@ def edge_collapse(model, vertex_index, saliency):
     return output, remove_index
 
 
-def sampling(curvatures, num):
-    min_curvature = np.min(curvatures)
-    max_curvature = np.max(curvatures)
-    sampled = np.linspace(min_curvature, max_curvature, num)
-    return sampled  
-
-def compute_vertex_area(model, vertex_index):
-    faces = find_faces(model, vertex_index)
-    areas = compute_areas(model, faces)
-    vertex_area = np.sum(areas)/3
-    return vertex_area
-
-
-def saliency_map(model, mesh_curvatures):
-    saliency = []
-    for vertex_index in range(len(model.vertices)):
-        neighbours = find_neighbours_r(model, vertex_index, 1)
-        curvatures = [mesh_curvatures[neighbour] for neighbour in neighbours]
-        sigmas = sampling(curvatures, int(len(curvatures)/3))
-        entropy = compute_entropy(model, sigmas, curvatures, neighbours)
-        saliency.append(entropy)
-    return saliency
-
-
-def compute_entropy(model, sigmas, curvatures, neighbours):
-    total_areas = [compute_vertex_area(model, idx) for idx in neighbours]
-    total_area = np.sum(total_areas)
-    entropy = 0
-    for sigma in sigmas:
-        p = 0
-        areas = 0
-        for i, curvature in enumerate(curvatures):
-            if sigmas[sigmas <= curvature].max() == sigma:
-                neighbour_area = total_areas[i]
-                areas += neighbour_area
-        p = areas/total_area
-
-        entropy -= p*np.log2(p)
-    return entropy
-
-
 # Testing
 path = "example\\bunny.obj"
 model = parse_file(path)
@@ -139,26 +151,23 @@ saliency = saliency_map(model, curvatures)
 t4 = time.time()
 print("time needed to compute saliency : ", t4 - t3)
 
-vertex_index = np.argmax(saliency)
+vertex_index = np.argmin(curvatures)
 new_model, remove_index = edge_collapse(model, vertex_index, saliency)
 
 print("removed index : ", remove_index)
-# print("removed faces : ", removed_faces)
 
-# print(150*"-")
+min_curvature = np.min(curvatures)
+max_curvature = np.max(curvatures)
+for i in range(len(curvatures)):
+    curvatures[i] = (curvatures[i]-min_curvature)/(max_curvature-min_curvature)
 
-# print("first n faces BEFORE edge collapse :\n", model.faces[:7])
-# print("first n faces After edge collapse :\n", new_model.faces[:7])
+min_saliency = np.min(saliency)
+max_saliency = np.max(saliency)
+for i in range(len(saliency)):
+    saliency[i] = (saliency[i]-min_saliency)/(max_saliency-min_saliency)
 
-# print(150*"-")
-
-# print("faces containing remove_index BEFORE edge collapse :\n ", find_faces(model, remove_index))
-# print("faces containing vertex_index AFTER edge collapse :\n ", find_faces(new_model, vertex_index))
-
-# print("\n")
-
-with open("bunny_result.obj", 'w') as f:
-    for vertex in new_model.vertices:
+with open(".\\results\\bunny_result.obj", 'w') as f:
+    for i, vertex in enumerate(model.vertices):
         f.write("v")
         f.write(" ")
         f.write(str(vertex[0]))
@@ -166,9 +175,15 @@ with open("bunny_result.obj", 'w') as f:
         f.write(str(vertex[1]))
         f.write(" ")
         f.write(str(vertex[2]))
+        f.write(" ")
+        f.write(str(saliency[i]))
+        f.write(" ")
+        f.write("0")
+        f.write(" ")
+        f.write("0")
         f.write("\n")
     
-    for face in new_model.faces:
+    for face in model.faces:
         f.write("f")
         f.write(" ")
         f.write(str(face.a + 1))
