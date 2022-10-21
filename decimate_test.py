@@ -113,6 +113,7 @@ def compute_entropy(model, sigmas, curv, neighbours):
     return entropy
 
 def edge_collapse(model, vertex_index, saliency):
+    operations = []
     output = Model()
     neighbours = find_neighbours_r(model, vertex_index, 1)
     neighbour_saliencies = [saliency[neighbour] for neighbour in neighbours]
@@ -122,25 +123,32 @@ def edge_collapse(model, vertex_index, saliency):
     for i in range(len(model.vertices)):
         if (i == vertex_index):
             output.vertices.append((model.vertices[i] + model.vertices[remove_index])/2)
+            operations.append("ev" + " " + str(i+1) + " " + str(model.vertices[i][0]) + " " + str(model.vertices[i][1]) + " " + str(model.vertices[i][2]))
+        elif (i == remove_index):
+            operations.append("v" + " " + str(model.vertices[i][0]) + " " + str(model.vertices[i][1]) + " " + str(model.vertices[i][2]))
         elif (i != remove_index and i != vertex_index):
             output.vertices.append(model.vertices[i])
         
-    for face in model.faces:
-        indices = [face.a, face.b, face.c]    
+    for j, face in enumerate(model.faces):
+        indices = [face.a, face.b, face.c]
+        indices_copy = [face.a, face.b, face.c]
         if ((vertex_index in indices) and (remove_index in indices)):
+            operations.append("f" + " " + str(indices[0]) + " " + str(indices[1]) + " " + str(indices[2]))
             continue
         for i in range(3):
             if (indices[i] == remove_index):
                 indices[i] = vertex_index
+                operations.append("ef" + " " + str(j) + " " + str(indices_copy[0]) + " " + str(indices_copy[1]) + " " +str(indices_copy[2]))
             if (indices[i] > remove_index):
-                indices[i] -= 1    
+                indices[i] -= 1
+                operations.append("ef" + " " + str(j) + " " + str(indices_copy[0]) + " " + str(indices_copy[1]) + " " + str(indices_copy[2]))
         output.faces.append(Face(indices[0], indices[1], indices[2]))
 
-    return output, remove_index, decrement
+    return output, remove_index, decrement, operations
 
 
 # Testing
-path = "example\\suzanne.obj"
+path = "example\\suzanne2.obj"
 model = parse_file(path)
 
 # Preprocessing
@@ -152,7 +160,7 @@ for i in range(len(model.vertices)):
 model.vertices = temp
 
 
-nb_edge_collapse = 400
+nb_edge_collapse = 1
 r = 2
 t1 = time.time()
 mesh_curvatures = compute_curvatures(model, model.vertices)
@@ -162,10 +170,10 @@ print("time 1 : ", t2 - t1)
 t3 = time.time()
 for i in range(nb_edge_collapse):
     vertex_index = np.argmin(saliency)
-    #new_model, remove_index, decrement = edge_collapse(model, vertex_index, saliency)
-    model, remove_index, decrement = edge_collapse(model, vertex_index, saliency)
+    model, remove_index, decrement, operations = edge_collapse(model, vertex_index, saliency)
+    print("vertex index : ", vertex_index)
+    print("remove index : ", remove_index)
     mesh_curvatures = compute_curvatures(model, model.vertices)
-    #model = copy.deepcopy(new_model)
     saliency.pop(vertex_index)
     if decrement:
         vertex_index -= 1
@@ -178,18 +186,7 @@ for i in range(nb_edge_collapse):
 t4 = time.time()
 print("time 2 : ", t4 - t3)
 
-min_curvature = np.min(mesh_curvatures)
-max_curvature = np.max(mesh_curvatures)
-for i in range(len(mesh_curvatures)):
-    mesh_curvatures[i] = (mesh_curvatures[i]-min_curvature)/(max_curvature-min_curvature)
-
-min_saliency = np.min(saliency)
-max_saliency = np.max(saliency)
-for i in range(len(saliency)):
-    #saliency[i] = (saliency[i] - min_saliency)/(max_saliency - min_saliency)
-    saliency[i] /= max_saliency
-
-with open(".\\results\\suzanne_result3.obj", 'w') as f:
+with open(".\\results\\test.obja", 'w') as f:
     for i, vertex in enumerate(model.vertices):
         f.write("v")
         f.write(" ")
@@ -198,12 +195,6 @@ with open(".\\results\\suzanne_result3.obj", 'w') as f:
         f.write(str(vertex[1]))
         f.write(" ")
         f.write(str(vertex[2]))
-        # f.write(" ")
-        # f.write(str(saliency[i]))
-        # f.write(" ")
-        # f.write("0")
-        # f.write(" ")
-        # f.write("0")
         f.write("\n")
     
     for face in model.faces:
@@ -214,4 +205,8 @@ with open(".\\results\\suzanne_result3.obj", 'w') as f:
         f.write(str(face.b + 1))
         f.write(" ")
         f.write(str(face.c + 1))
+        f.write("\n")
+
+    for op in operations:
+        f.write(op)
         f.write("\n")
