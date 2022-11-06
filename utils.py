@@ -16,23 +16,6 @@ def compute_vertex_normal(model, vertex_index):
     vertex_normal /= np.linalg.norm(vertex_normal)
     return vertex_normal
 
-# def compute_curvatures(model):
-#     # Compute curvature at each vertex
-#     curvatures = []
-#     for vertex_index, vertex in enumerate(model.vertices):
-#         vertex_normal = compute_vertex_normal(model, vertex_index)
-
-#         neighbours = find_neighbours_r(model, vertex_index, 1)
-#         curvature = 0
-#         for neighbour_index in neighbours:
-#             neighbour = model.vertices[neighbour_index]
-#             neighbour_normal = compute_vertex_normal(model, neighbour_index)
-#             curvature += np.inner(neighbour_normal-vertex_normal, neighbour-vertex)/np.linalg.norm(neighbour-vertex)**2
-
-#         curvature /= len(neighbours)
-#         curvatures.append(curvature)
-#     return curvatures
-
 def compute_curvatures(model, vertices):
     # Compute curvature at each vertex
     curvatures = []
@@ -86,10 +69,13 @@ def compute_vertex_area(model, vertex_index):
     vertex_area = np.sum(areas)/3
     return vertex_area
 
-def saliency_map(model, mesh_curvatures, vertices, r):
+def saliency_map(model, mesh_curvatures, vertices, r, i):
     saliency = []
     for vertex_index in vertices:
         neighbours = find_neighbours_r(model, vertex_index, r)
+        if len(neighbours) == 0:
+            print(vertex_index)
+            print(i)
         curv = [mesh_curvatures[neighbour] for neighbour in neighbours]
         sigmas = sampling(curv, 25)
         entropy = compute_entropy(model, sigmas, curv, neighbours)
@@ -140,7 +126,7 @@ def edge_collapse(model, vertex_index, saliency):
 
 
 # Testing
-path = "example\\suzanne.obj"
+path = "example\\subdivided_cube.obj"
 model = parse_file(path)
 
 # Preprocessing
@@ -152,11 +138,11 @@ for i in range(len(model.vertices)):
 model.vertices = temp
 
 
-nb_edge_collapse = 400
+nb_edge_collapse = 1
 r = 2
 t1 = time.time()
 mesh_curvatures = compute_curvatures(model, model.vertices)
-saliency = saliency_map(model, mesh_curvatures, range(len(model.vertices)), r)
+saliency = saliency_map(model, mesh_curvatures, range(len(model.vertices)), r, 0)
 t2 = time.time()
 print("time 1 : ", t2 - t1)
 t3 = time.time()
@@ -171,7 +157,7 @@ for i in range(nb_edge_collapse):
         vertex_index -= 1
     local_vertices = find_neighbours_r(model, vertex_index, r)
     local_vertices.append(vertex_index)
-    local_saliency = saliency_map(model, mesh_curvatures, local_vertices, r)
+    local_saliency = saliency_map(model, mesh_curvatures, local_vertices, r, i)
     for cpt, idx in enumerate(local_vertices):
         saliency[idx] = local_saliency[cpt]
     # print("remove_index : ", remove_index)
@@ -189,7 +175,7 @@ for i in range(len(saliency)):
     #saliency[i] = (saliency[i] - min_saliency)/(max_saliency - min_saliency)
     saliency[i] /= max_saliency
 
-with open(".\\results\\suzanne_result3.obj", 'w') as f:
+with open(".\\results\\subdivided_cube_result.obj", 'w') as f:
     for i, vertex in enumerate(model.vertices):
         f.write("v")
         f.write(" ")

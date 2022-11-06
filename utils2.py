@@ -65,7 +65,7 @@ def sampling(curvatures, num):
     min_curvature = np.min(curvatures)
     max_curvature = np.max(curvatures)
     sampled = np.linspace(min_curvature, max_curvature, num)
-    return sampled
+    return sampled  
 
 def compute_vertex_area(model, vertex_index):
     faces = find_faces(model, vertex_index)
@@ -73,12 +73,12 @@ def compute_vertex_area(model, vertex_index):
     vertex_area = np.sum(areas)/3
     return vertex_area
 
-def saliency_map(model, mesh_curvatures, vertices, r):
+def saliency_map(model, mesh_curvatures, vertices, r, i):
     saliency = []
     for vertex_index in vertices:
         neighbours = find_neighbours_r(model, vertex_index, r)
         curv = [mesh_curvatures[neighbour] for neighbour in neighbours]
-        sigmas = sampling(curv, 7)
+        sigmas = sampling(curv, 25)
         entropy = compute_entropy(model, sigmas, curv, neighbours)
         saliency.append(entropy)
     return saliency
@@ -100,40 +100,34 @@ def compute_entropy(model, sigmas, curv, neighbours):
     return entropy
 
 def edge_collapse(model, vertex_index, saliency):
-    operations1 = []
-    operations2 = []
     output = Model()
     neighbours = find_neighbours_r(model, vertex_index, 1)
     neighbour_saliencies = [saliency[neighbour] for neighbour in neighbours]
     remove_index = neighbours[np.argmin(neighbour_saliencies)]
+    decrement = vertex_index > remove_index
 
-    output.vertices = copy.copy(model.vertices)
-    vtx = (model.vertices[vertex_index] + model.vertices[remove_index])/2
-    output.vertices.append(vtx)
-    
-    for k, face in enumerate(model.faces):
-        indices = [face.a, face.b, face.c]
-        indices2 = [face.a, face.b, face.c]
+    for i in range(len(model.vertices)):
+        if (i == vertex_index):
+            output.vertices.append((model.vertices[i] + model.vertices[remove_index])/2)
+        elif (i != remove_index and i != vertex_index):
+            output.vertices.append(model.vertices[i])
+        
+    for face in model.faces:
+        indices = [face.a, face.b, face.c]    
         if ((vertex_index in indices) and (remove_index in indices)):
-            # print("index of removed face = ", k+1)
-            operations1.append("af " + " " + str(k+1) + " " + str(face.a+1) + " " + str(face.b+1) + " " + str(face.c+1))
             continue
         for i in range(3):
-            if (indices[i] == remove_index) or (indices[i] == vertex_index):
-                indices[i] = len(output.vertices) - 1
-                operations2.append("efv " + str(k+1) + " " + str(i+1) + " " + str(indices2[i]+1))
-
+            if (indices[i] == remove_index):
+                indices[i] = vertex_index
+            if (indices[i] > remove_index):
+                indices[i] -= 1    
         output.faces.append(Face(indices[0], indices[1], indices[2]))
 
-    operations1.reverse()
-    operations2.reverse()
-    operations = operations2 + operations1
-
-    return output, remove_index, operations
+    return output, remove_index, decrement
 
 
 # Testing
-path = "example\\suzanne.obj"
+path = "example\\bunny.obj"
 model = parse_file(path)
 
 # Preprocessing
@@ -145,34 +139,47 @@ for i in range(len(model.vertices)):
 model.vertices = temp
 
 
-ops = []
-nb_edge_collapse = 250
+nb_edge_collapse = 1500
 r = 2
+t1 = time.time()
 mesh_curvatures = compute_curvatures(model, model.vertices)
-saliency = saliency_map(model, mesh_curvatures, range(len(model.vertices)), r)
+saliency = saliency_map(model, mesh_curvatures, range(len(model.vertices)), r, 0)
+t2 = time.time()
+print("time 1 : ", t2 - t1)
+t3 = time.time()
 for i in range(nb_edge_collapse):
     vertex_index = np.argmin(saliency)
-    if saliency[vertex_index] == +inf:
-        break
-    model, remove_index, operations = edge_collapse(model, vertex_index, saliency)
-    saliency.append(0)
-    ops.append(operations)
+    #new_model, remove_index, decrement = edge_collapse(model, vertex_index, saliency)
+    model, remove_index, decrement = edge_collapse(model, vertex_index, saliency)
     mesh_curvatures = compute_curvatures(model, model.vertices)
-    local_vertices = find_neighbours_r(model, len(model.vertices)-1, r)
+    #model = copy.deepcopy(new_model)
+    saliency.pop(remove_index)
+    if decrement:
+        vertex_index -= 1
+    local_vertices = find_neighbours_r(model, vertex_index, r)
     if len(local_vertices) != 0:
-        local_vertices.append(len(model.vertices)-1)
-        local_saliency = saliency_map(model, mesh_curvatures, local_vertices, r)
+        local_vertices.append(vertex_index)
+        local_saliency = saliency_map(model, mesh_curvatures, local_vertices, r, i)
         for cpt, idx in enumerate(local_vertices):
             saliency[idx] = local_saliency[cpt]
     for j in range(len(model.vertices)):
         if len(find_neighbours_r(model, j, 1)) == 0:
             saliency[j] = +inf
+t4 = time.time()
+print("time 2 : ", t4 - t3)
 
-ops = [item for sublist in ops for item in sublist]
-ops.reverse()
-# print(ops)
+# min_curvature = np.min(mesh_curvatures)
+# max_curvature = np.max(mesh_curvatures)
+# for i in range(len(mesh_curvatures)):
+#     mesh_curvatures[i] = (mesh_curvatures[i]-min_curvature)/(max_curvature-min_curvature)
 
-with open(".\\results\\suzanne.obja", 'w') as f:
+# min_saliency = np.min(saliency)
+# max_saliency = np.max(saliency)
+# for i in range(len(saliency)):
+#     #saliency[i] = (saliency[i] - min_saliency)/(max_saliency - min_saliency)
+#     saliency[i] /= max_saliency
+
+with open(".\\results\\bunny_test.obj", 'w') as f:
     for i, vertex in enumerate(model.vertices):
         f.write("v")
         f.write(" ")
@@ -181,6 +188,12 @@ with open(".\\results\\suzanne.obja", 'w') as f:
         f.write(str(vertex[1]))
         f.write(" ")
         f.write(str(vertex[2]))
+        # f.write(" ")
+        # f.write(str(saliency[i]))
+        # f.write(" ")
+        # f.write("0")
+        # f.write(" ")
+        # f.write("0")
         f.write("\n")
     
     for face in model.faces:
@@ -191,8 +204,4 @@ with open(".\\results\\suzanne.obja", 'w') as f:
         f.write(str(face.b + 1))
         f.write(" ")
         f.write(str(face.c + 1))
-        f.write("\n")
-    
-    for op in ops:
-        f.write(op)
         f.write("\n")

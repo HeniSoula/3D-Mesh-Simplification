@@ -218,6 +218,11 @@ class Model:
         elif split[0] == "tv":
             self.get_vector_from_string(split[1]).translate(split[2:])
 
+        elif split[0] == "af":
+            face = Face.from_array(split[2:2+3])
+            pos = int(split[1])
+            self.faces.insert(pos-1, face)
+
         elif split[0] == "f" or split[0] == "tf":
             for i in range(1, len(split) - 2):
                 face = Face.from_array(split[i:i+3])
